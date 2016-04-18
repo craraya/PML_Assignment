@@ -15,8 +15,8 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r}
 library(caret)
-pml_training <- read.csv("/media/caraya/DATA/CURSOS/02-Datascience/08 - Practical_Machine_Learning/Assignment/pml-training.csv", na.strings = c("", "NA", "#DIV/0!"))
-pml_testing <- read.csv("/media/caraya/DATA/CURSOS/02-Datascience/08 - Practical_Machine_Learning/Assignment/pml-testing.csv", na.strings = c("", "NA", "#DIV/0!"))
+pml_training <- read.csv("~/PML_Assignment/pml-training.csv", na.strings = c("", "NA", "#DIV/0!"))
+pml_testing <- read.csv("~/PML_Assignment/pml-testing.csv", na.strings = c("", "NA", "#DIV/0!"))
 
 # define train and test for cross validation
 inTrain <- createDataPartition(y=pml_training$classe,
