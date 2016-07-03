@@ -1,11 +1,11 @@
 ---
 title: "Prediction Assignment"
 author: "Carlos Araya"
-date: "17 de abril de 2016"
+date: "1 de Julio de 2016"
 output: html_document
 ---
 
-```{r setup, include=FALSE}
+```{r}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
@@ -13,39 +13,106 @@ knitr::opts_chunk$set(echo = TRUE)
 
 1. Load the data.
 
+We load the data pml-training.csv and pml-testing.csv.
+
 ```{r}
 library(caret)
-pml_training <- read.csv("~/PML_Assignment/pml-training.csv", na.strings = c("", "NA", "#DIV/0!"))
-pml_testing <- read.csv("~/PML_Assignment/pml-testing.csv", na.strings = c("", "NA", "#DIV/0!"))
+pml_training <- read.csv("/media/caraya/DATA/CURSOS/02-Datascience/08 - Practical_Machine_Learning/PML_Assignment/pml-training.csv", na.strings = c("", "NA", "#DIV/0!"))
+pml_testing <- read.csv("/media/caraya/DATA/CURSOS/02-Datascience/08 - Practical_Machine_Learning/PML_Assignment/pml-testing.csv", na.strings = c("", "NA", "#DIV/0!"))
+```
+In this case, we found a lot of data with missing values. We proceed to eliminate every variable with missing values from the original database.
+```{r}
+# Mark the variables with miss values
+isAnyMissing <- sapply(pml_testing, function (x) any(is.na(x) | x == ""))
+table(isAnyMissing)
+# Select the variables without missing values and its names contain belt, arm, dumbbell, forearm
+isPredictor <- !isAnyMissing & grepl("belt|[^(fore)]arm|dumbbell|forearm", names(isAnyMissing))
+predCandidates <- names(isAnyMissing)[isPredictor]
+predCandidates
+```
+There are 100 variables with missing values and 52 variables for model.
+```{r}
+## Subset the primary dataset to include only the predictor candidates and the outcome variable, classe.
+varToInclude <- c("classe", predCandidates)
+pml_training <- pml_training[, varToInclude]
+#dim(pml_training)
+#names(pml_training)
 
-# define train and test for cross validation
+## Make classe into a factor.
+pml_training[,"classe"] <- as.factor(pml_training[,"classe"])
+
+## Split the dataset into a 60% training and 40% probing dataset.
+
+## Define train and test for cross validation
+seed <- 24568
 inTrain <- createDataPartition(y=pml_training$classe,
-                                p=0.75,list=FALSE)
-training_0 <- pml_training[inTrain,]
-testing_0 <- pml_training[-inTrain,]
-
-# We count NAs
-NAs <- apply(training_0, 2, function(x) {
-    sum(is.na(x))
-})
-#(NAs)
-training <- training_0[, which(NAs == 0)]
-testing <- testing_0[, which(NAs == 0)]
-pml_test <- pml_testing[, which(NAs == 0)]
+                               p=0.75,list=FALSE) ## Originary 75%
+training_0 <- pml_training[inTrain,] # DTrain
+testing_0 <- pml_training[-inTrain,] # DProbe
 ```
 
-2. Modeling
+2. Transform the data
+
+We centering and scaling the final dataset.
+```{r}
+library(data.table)
+
+## Preprocess the prediction variables by Centering and Scaling.
+X <- training_0[, predCandidates]
+preProc <- preProcess(X)
+preProc
+XCS <- predict(preProc, X)
+trainingCS <- data.table(data.frame(classe = training_0[, "classe"], XCS))
+
+## Apply the Centering and Scaling to the probing dataset.
+X <- testing_0[, predCandidates]
+XCS <- predict(preProc, X)
+testingCS <- data.table(data.frame(classe = testing_0[, "classe"], XCS))
+```
+
+3. Modeling
 
 ```{r}
-modelFit <- train(classe ~ ., data = training, method = "rf"
-                  ,trControl=trainControl(method = "cv", number = 4))
-modelFit
-predictions <- predict(modelFit, newdata = testing)
-confusionMatrix(predictions, testing$classe)
+## Set the control parameters.
+ctrl <- trainControl(classProbs=TRUE,
+                     savePredictions=TRUE,
+                     allowParallel=TRUE)
+## We comment the script for the time
+## system.time(trainingModel <- train(classe ~ ., data=trainingCS, method="rf"))
+load(file="/media/caraya/DATA/CURSOS/02-Datascience/08 - Practical_Machine_Learning/PML_Assignment/trainingModel.RData", verbose=TRUE)
+```
+
+The final model
+```{r}
+trainingModel
+hat <- predict(trainingModel, trainingCS)
+confusionMatrix(hat, training_0[, "classe"])
+
+## Evaluate the model on the probing dataset
+hat <- predict(trainingModel, testingCS)
+confusionMatrix(hat, testing_0[, "classe"])
+
+## Display the final model
+varImp(trainingModel)
+trainingModel$finalModel
 ```
 
 3. Forecast
 ```{r}
-predictions_2 <- predict(modelFit, newdata = pml_test)
-predictions_2
+pml_testingCS <- predict(preProc, pml_testing[, predCandidates])
+hat <- predict(trainingModel, pml_testingCS)
+pml_testing <- cbind(hat , pml_testing)
+subset(pml_testing, select=names(pml_testing)[grep("belt|[^(fore)]arm|dumbbell|forearm"
+                                                   , names(pml_testing), invert=TRUE)])
+```
+
+4. Others.
+```{r}
+## Save training model object for later.
+## save(trainingModel, file="trainingModel.RData")
+## Load the training model.
+## Save Workspace for later
+## save.image("/media/caraya/DATA/CURSOS/02-Datascience/08 - Practical_Machine_Learning/PML_Assignment/Prediction_Assignment.RData")
+## load(file="trainingModel.RData", verbose=TRUE)
+## Get predictions and evaluate.
 ```
